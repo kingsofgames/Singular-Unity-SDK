@@ -128,7 +128,7 @@ namespace Singular
         }
         
         // Only call this if you have disabled InitializeOnAwake
-        public static void InitializeSingularSDK()
+        public static void InitializeSingularSDK(bool overrideLogging = false, bool enableLogging = false)
         {
             if (Initialized)
                 return;
@@ -144,6 +144,10 @@ namespace Singular
             if (Application.isEditor)
             {
                 return;
+            }
+
+            if(overrideLogging) {
+                instance.enableLogging = enableLogging;
             }
 
             SingularConfig config = BuildSingularConfig();
@@ -1292,6 +1296,7 @@ namespace Singular
         transactionData["is_revenue_event"] = true;
 
         if (product.metadata != null) {
+            transactionData["pn"] = product.metadata.localizedTitle;
             transactionData["r"] = isRestored ? 0 : (double)product.metadata.localizedPrice;
             transactionData["pcc"] = product.metadata.isoCurrencyCode;
         }
