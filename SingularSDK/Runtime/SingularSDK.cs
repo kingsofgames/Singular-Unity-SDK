@@ -1158,21 +1158,22 @@ namespace Singular
 
 #if SINGULAR_SDK_IAP_ENABLED
         
-    public static void InAppPurchase(IEnumerable<Product> products, Dictionary<string, object> attributes, bool isRestored = false) {
-        InAppPurchase("__iap__", products, attributes, isRestored);
+    public static void InAppPurchase(Order order, Dictionary<string, object> attributes, bool isRestored = false) {
+        InAppPurchase("__iap__", order, attributes, isRestored);
     }
 
-    public static void InAppPurchase(string eventName, IEnumerable<Product> products, Dictionary<string, object> attributes, bool isRestored = false) {
-        foreach (var item in products) {
-            InAppPurchase(eventName, item, attributes, isRestored);
+    public static void InAppPurchase(string eventName, Order order, Dictionary<string, object> attributes, bool isRestored = false) {
+        var cartItems = order.CartOrdered.Items();
+        foreach (var item in cartItems) {
+            InAppPurchase(eventName, order, item.Product, attributes, isRestored);
         }
     }
 
-    public static void InAppPurchase(Product product, Dictionary<string, object> attributes, bool isRestored = false) {
-        InAppPurchase("__iap__", product, attributes, isRestored);
+    public static void InAppPurchase(Order order, Product product, Dictionary<string, object> attributes, bool isRestored = false) {
+        InAppPurchase("__iap__", order, product, attributes, isRestored);
     }
 
-    public static void InAppPurchase(string eventName, Product product, Dictionary<string, object> attributes, bool isRestored = false) {
+    public static void InAppPurchase(string eventName, Order order, Product product, Dictionary<string, object> attributes, bool isRestored = false) {
         if (Application.isEditor) {
             return;
         }
@@ -1188,21 +1189,22 @@ namespace Singular
             revenue = 0.0;
         }
 
-        if (!product.hasReceipt) {
+        bool hasReceipt = order.Info.Receipt != null;
+        if (!hasReceipt) {
             CustomRevenue(eventName, product.metadata.isoCurrencyCode, revenue);
         } else {
             Dictionary<string, object> purchaseData = null;
 #if UNITY_IOS
-            purchaseData = BuildIOSPurchaseAttributes(product, attributes, isRestored);
+            purchaseData = BuildIOSPurchaseAttributes(order, product, attributes, isRestored);
 #elif UNITY_ANDROID
-            purchaseData = BuildAndroidPurchaseAttributes(product, attributes, isRestored);
+            purchaseData = BuildAndroidPurchaseAttributes(order, product, attributes, isRestored);
 #endif
             Event(purchaseData, eventName);
         }
     }
 
 #if UNITY_IOS
-    private static Dictionary<string, object> BuildIOSPurchaseAttributes(Product product, Dictionary<string, object> attributes, bool isRestored) {
+    private static Dictionary<string, object> BuildIOSPurchaseAttributes(Order order, Product product, Dictionary<string, object> attributes, bool isRestored) {
 
         var transactionData = new Dictionary<string, object>();
 
@@ -1226,8 +1228,8 @@ namespace Singular
         transactionData["pt"] = @"o";
         transactionData["pc"] = @"";
         transactionData["ptc"] = isRestored;
-        transactionData["pti"] = product.transactionID;
-        transactionData["ptr"] = ExtractIOSTransactionReceipt(product.receipt);
+        transactionData["pti"] = order.Info.TransactionID;
+        transactionData["ptr"] = ExtractIOSTransactionReceipt(order.Info.Receipt);
         transactionData["is_revenue_event"] = true;
 
 
@@ -1263,10 +1265,10 @@ namespace Singular
 #endif
 
 #if UNITY_ANDROID
-    private static Dictionary<string, object> BuildAndroidPurchaseAttributes(Product product, Dictionary<string, object> attributes, bool isRestored) {
+    private static Dictionary<string, object> BuildAndroidPurchaseAttributes(Order order, Product product, Dictionary<string, object> attributes, bool isRestored) {
         var transactionData = new Dictionary<string, object>();
 
-        if (product.receipt == null) {
+        if (order.Info.Receipt == null) {
             return attributes;
         }
 
@@ -1276,7 +1278,7 @@ namespace Singular
             }
         }
 
-        var values = JsonConvert.DeserializeObject<Dictionary<string, string>>(product.receipt);
+        var values = JsonConvert.DeserializeObject<Dictionary<string, string>>(order.Info.Receipt);
 
         if (values.ContainsKey("signature")) {
             transactionData["receipt_signature"] = values["signature"];
@@ -1288,7 +1290,7 @@ namespace Singular
 	
 	// this string manipulation is done in order to deal with problematic descaping on server and validating receipts.
 	// for more information: https://singularlabs.atlassian.net/browse/SDKDEV-88
-        string receipt = Regex.Replace(product.receipt, @"\\+n", "");
+        string receipt = Regex.Replace(order.Info.Receipt, @"\\+n", "");
         transactionData["receipt"] = receipt;
         transactionData["is_revenue_event"] = true;
 
